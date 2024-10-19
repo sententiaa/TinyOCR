@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR with Tesseract.js</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #252525;
+            color: white;
+        }
+        .container {
+            width: 500px;
+            text-align: center;
+        }
+        #output, #translation-output {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background-color: #969696;
+            border-radius: 5px;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 300px;
+            color: black;
+            overflow-y: auto;
+        }
+        #translation-output {
+            margin-top: 10px;
+            background-color: #d4f0f4;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>OCR</h1>
+        <p></p>
+
+        <input type="file" id="image-upload" accept="image/*" />
+        <select id="language-selector">
+            <!-- Tesseract.js Supported Languages -->
+            <option value="eng">English</option>
+            <option value="jpn">Japanese</option>
+            <option value="fra">French</option>
+            <option value="deu">German</option>
+            <option value="spa">Spanish</option>
+            <option value="ita">Italian</option>
+            <option value="chi_sim">Chinese (Simplified)</option>
+            <option value="chi_tra">Chinese (Traditional)</option>
+            <option value="kor">Korean</option>
+            <option value="rus">Russian</option>
+            <option value="por">Portuguese</option>
+            <option value="ara">Arabic</option>
+            <option value="hin">Hindi</option>
+            <option value="vie">Vietnamese</option>
+            <!-- Add more languages as needed -->
+        </select>
+        <button id="process-image">Process Image</button>
+
+        <div id="output">OCR Result will appear here...</div>
+        <!-- <button id="translate-output">Translate OCR Output</button>
+        <div id="translation-output">Translation will appear here...</div> -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4"></script>
+    <script>
+        const imageUpload = document.getElementById('image-upload');
+        const processButton = document.getElementById('process-image');
+        const output = document.getElementById('output');
+        /*const translationButton = document.getElementById('translate-output');
+        const translationOutput = document.getElementById('translation-output');*/
+        const languageSelector = document.getElementById('language-selector');
+
+        let ocrResult = '';  // Store OCR result globally
+
+        // Function to remove extra spacing for certain languages (like Japanese)
+        function normalizeSpacing(text, lang) {
+            if (lang === 'jpn') {
+                return text.replace(/\s+/g, '');  // Remove extra spaces for Japanese
+            }
+            return text;  // Leave other languages unchanged
+        }
+
+        processButton.addEventListener('click', () => {
+            const file = imageUpload.files[0];
+            const selectedLanguage = languageSelector.value;
+            if (!file) {
+                output.textContent = "Please upload an image first.";
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    Tesseract.recognize(
+                        img,
+                        selectedLanguage,
+                        {
+                            logger: m => console.log(m)
+                        }
+                    ).then(({ data: { text } }) => {
+                        ocrResult = normalizeSpacing(text, selectedLanguage);
+                        output.textContent = ocrResult;
+                    }).catch(err => {
+                        output.textContent = `Error: ${err.message}`;
+                    });
+                };
+            };
+            reader.readAsDataURL(file);
+        });
+
+        translationButton.addEventListener('click', () => {
+            if (!ocrResult) {
+                translationOutput.textContent = "No OCR result to translate.";
+                return;
+            }
+
+            const targetLanguage = 'en'; // You can change this to let the user select a target language
+
+            // Using LibreTranslate API for translation
+            fetch('https://libretranslate.com/translate', {
+                method: 'POST',
+                body: JSON.stringify({
+                    q: ocrResult,
+                    source: 'auto', // Detect source language automatically
+                    target: targetLanguage,
+                    format: 'text'
+                }),
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => {
+                return response.json();
+            }).then(data => {
+                console.log('Translation response:', data); // Log for debugging
+                if (data && data.translatedText) {
+                    translationOutput.textContent = data.translatedText;
+                } else {
+                    translationOutput.textContent = "Translation failed. Please try again.";
+                }
+            }).catch(err => {
+                console.error('Translation error:', err); // Log any errors
+                translationOutput.textContent = `Error translating: ${err.message}`;
+            });
+        });
+    </script>
+
+</body>
+</html>
